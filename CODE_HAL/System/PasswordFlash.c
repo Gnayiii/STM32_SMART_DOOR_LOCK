@@ -21,7 +21,7 @@ void Flash_Lock(void) {
 /**
  * @brief  擦除密码所在的Flash页（F1系列专用）
  * @note   F1系列Flash按页擦除，每页大小根据型号不同为1KB或2KB
- *         这里针对STM32F103C8T6（每页1KB），只擦除1页
+ *         STM32F103C8T6（每页1KB），只擦除1页
  */
 void Flash_Erase(void) {
     FLASH_EraseInitTypeDef erase_init;  // 擦除配置结构体
