@@ -2,14 +2,14 @@
 
 - [? 一、简介](#intro)
 - [? 二、文件说明](#files)
-  - [? 1. main.c](#main-c)
-  - [? 2. Delay.c](#delay-c)
+  - [?? 1. main.c](#main-c)
+  - [?? 2. Delay.c](#delay-c)
   - [? 3. Flash.c](#flash-c)
   - [? 4. PasswordFlash.c](#passwordflash-c)
   - [? 5. FingerprintFlash.c](#fingerprintflash-c)
-  - [? 5. OLED.c](#oled-c)
+  - [?? 5. OLED.c](#oled-c)
   - [? 6. OLED_Data.c](#oled-data-c)
-  - [? 7. Key.c](#key-c)
+  - [?? 7. Key.c](#key-c)
   - [? 8. Motor.c](#motor-c)
   - [? 9. Menu.c](#menu-c)
   - [? 10. MFRC522.c](#mfrc522-c)
@@ -17,7 +17,7 @@
   - [? 12. BUZZER.c](#buzzer-c)
   - [? 13. AS608.c](#as608-c)
 - [? 三、整体流程](#flow)
-- [?? 四、硬件](#hardware)
+- [? 四、硬件](#hardware)
 
 <a id="intro"></a>
 # ? 一、简介
@@ -58,14 +58,14 @@ CODE_HAL/
 # ? 二、文件说明
 
 <a id="main-c"></a>
-## ? 1. main.c
+## ?? 1. main.c
 
 1. 完成系统初始化、主循环状态切换、蓝牙密码解锁、RFID 刷卡解锁、指纹解锁、菜单功能跳转，以及定时器和串口中断回调处理
 2. 轮询 + 标志位状态机：主循环不断地轮询，靠标志位判断应该进入的分支
 3. 密码、蓝牙、刷卡、指纹四种入口在锁定状态下并行存在，谁先成功就谁触发开锁
 
 <a id="delay-c"></a>
-## ? 2. Delay.c
+## ?? 2. Delay.c
 
 实现高精度忙等待延时，基于 CPU 周期计数器的精确延时
 
@@ -93,7 +93,7 @@ CODE_HAL/
 3. 指纹模块内部有page0~127，即128个指纹模版，在业务层设置4个槽位，对应page0-3，方便管理和操作
 
 <a id="oled-c"></a>
-## ? 5. OLED.c
+## ?? 5. OLED.c
 
 1. OLED 显示驱动 + 图形库，UI交互的核心
 2. 软件 I2C 位操作
@@ -109,7 +109,7 @@ CODE_HAL/
 - 图片资源：`Boxleft`、`Boxright`、`Diode`、`Return`、`Eyebrow1`、`Eyebrow2`、`Mouth`、`Lock`、`Empty` 等
 
 <a id="key-c"></a>
-## ? 7. Key.c
+## ?? 7. Key.c
 
 1. 4×4 矩阵键盘扫描与消抖模块
 2. 把 4 根行线和 4 根列线分配到不同的 GPIO 上，然后逐行输出低电平、逐列读输入，判断当前按下的是哪一个按键，最终映射成 1~16
@@ -154,12 +154,12 @@ CODE_HAL/
 2. 通过手机连接蓝牙发送4位密码进行开锁验证
 
 <a id="buzzer-c"></a>
-## ? 12.  BUZZER.c
+## ? 12. BUZZER.c
 
 1. 蜂鸣器声反馈模块：GPIO 电平控制 + 不同时长的阻塞延时
 
 <a id="as608-c"></a>
-## ? 13.  AS608.c
+## ? 13. AS608.c
 
 1.  AS608 指纹模块协议驱动 + 高层录入 / 识别封装：实现了指纹协议包的发送、接收、解析；另一方面又提供了“等待手指识别一次”“录入新指纹”“删除模    板”等业务级接口
 2. 高层业务函数封装：
@@ -293,6 +293,6 @@ CODE_HAL/
 └── 报警/连续提示音
 
 <a id="hardware"></a>
-# ?? 四、硬件
+# ? 四、硬件
 
 原理图+PCB+BOM见文件夹：SCHEMATIC_PCB
