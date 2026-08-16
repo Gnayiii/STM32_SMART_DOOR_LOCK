@@ -70,8 +70,11 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 uint8_t cardnumber;
 uint8_t RxData[PASSWORD_LEN + 1];
-uint8_t password_rx_complete = 0;
-static uint8_t rfid_fail_pending = 0; /* RFID 防重复计数闩锁 */
+volatile uint8_t bt_rx_buf[PASSWORD_LEN]; /* 蓝牙帧缓冲，最多4位数字 */
+volatile uint8_t bt_rx_len;               /* 已收到数字个数 */
+volatile uint32_t bt_last_tick;           /* 最近收到字节的时刻（超时判半帧） */
+uint8_t bt_rx_byte;                       /* 蓝牙单字节接收单元 */
+static uint8_t rfid_fail_pending = 0;     /* RFID 防重复计数闩锁 */
 extern uint8_t LockFlag;
 extern uint8_t Flag;
 extern uint8_t deleteflag;
@@ -87,7 +90,6 @@ extern uint8_t UI3[4]; // 卡片3ID数组
 void RFID_Check(void); // 声明函数
 void Read_Card(void);
 uint8_t Check_Password_HC06(void);
-void Clear_UART_RX_Buffer(void);
 
 /* USER CODE END 0 */
 
@@ -129,13 +131,13 @@ int main(void)
   PasswordFlash_Init();
   Security_Init();                                  /* 反暴力+自动回锁初始化 */
   WDT_Init();                                       /* 独立看门狗初始化 */
-  HAL_UART_Receive_IT(&huart2, &usart2_rx_byte, 1); // 启动 USART2 单字节中断接收（保证第一次触发回调）
+  HAL_UART_Receive_IT(&huart2, &usart2_rx_byte, 1); // 启动 USART2 单字节接收（保持原样）
+  HAL_UART_Receive_IT(&huart1, &bt_rx_byte, 1);     /* 蓝牙：单字节持续接收，杜绝寄存器残留 */
   OLED_Clear();
   HAL_TIM_Base_Start_IT(&htim2);
   Menu_Show_UI(); // 入场动画
 
   uint8_t FirstFlag = 0;
-  uint8_t uartflag = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -146,14 +148,13 @@ int main(void)
     Read_Card();       // 读取RFID卡号
     if (LockFlag == 0) // 门锁关闭状态
     {
-      if (uartflag == 0)
+      /* 蓝牙：凑满4位数字即一帧，半帧300ms无新字节作废 */
+      if (bt_rx_len == PASSWORD_LEN)
       {
-        HAL_UART_Receive_IT(&huart1, RxData, PASSWORD_LEN); // 启动串口接收
-        uartflag = 1;
-      }
-      // 蓝牙解锁
-      if (password_rx_complete)
-      {
+        for (uint8_t i = 0; i < PASSWORD_LEN; i++)
+          RxData[i] = bt_rx_buf[i];
+        RxData[PASSWORD_LEN] = '\0';
+        bt_rx_len = 0;
         if (!Security_IsLocked() && Check_Password_HC06()) /* 反暴力:锁定期间忽略蓝牙 */
         {
           OLED_Clear();
@@ -175,11 +176,9 @@ int main(void)
           HAL_Delay(600);
           OLED_Clear();
         }
-
-        // 清楚数组残留并且标志位置0
-        Clear_UART_RX_Buffer();
-        password_rx_complete = 0;
       }
+      else if (bt_rx_len && (HAL_GetTick() - bt_last_tick) > 300)
+        bt_rx_len = 0; /* 半帧超时作废，防残留拼接 */
       // 指纹解锁
       if (!Security_IsLocked() && PS_ReadTouch() == 1) // 有手指触摸（反暴力:锁定期间忽略指纹）
       {
@@ -216,14 +215,13 @@ int main(void)
     }
     else // 门锁开启状态
     {
+      bt_rx_len = 0; /* 开锁态丢弃蓝牙残帧，防回锁后误触发 */
       if (AutoRelock_CheckAndExec())
         continue; /* 自动回锁:超时自动关锁回锁屏 */
       // S13=上一页，返回
       // S14=上一页
       // S15=删除
       // S16=确认
-      HAL_UART_AbortReceive(&huart1); // 禁止串口接收
-      uartflag = 0;
       OLED_Clear();
       Menu_UI();
       OLED_Update();
@@ -252,6 +250,7 @@ int main(void)
         OLED_ShowChar(100, 28, '.', OLED_8X16);
         OLED_Update();
         Motor_DirectionAngle90(cw);
+        bt_rx_len = 0;          /* 丢弃菜单页期间蓝牙残留,防关锁后误触发 */
         LockFlag = 0;
       }
       else if (FirstFlag == 5) // 录入指纹
@@ -325,17 +324,6 @@ uint8_t Check_Password_HC06(void)
   }
   // 比较接收到的密码是否正确
   return strcmp((char *)RxData, stored_pass) == 0;
-}
-
-void Clear_UART_RX_Buffer(void)
-{
-  volatile uint32_t tmp;
-  // 清空串口接收缓冲区中已接收但未处理的数据
-  while (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_RXNE))
-  {
-    tmp = huart1.Instance->DR; // 读取DR寄存器会自动清除RXNE标志
-    (void)tmp;
-  }
 }
 
 // RFID卡检测函数（反暴力:锁定期间忽略+防重复计数）
@@ -417,11 +405,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   if (huart->Instance == USART1)
   {
-    RxData[PASSWORD_LEN] = '\0';
-    password_rx_complete = 1; // 表示密码接收完成
-
-    // 可在此处重新开启下一次接收（如需要）
-    // HAL_UART_Receive_IT(&huart1, RxData, 4);
+    if (bt_rx_len && bt_rx_len < PASSWORD_LEN && (HAL_GetTick() - bt_last_tick) > 300)
+      bt_rx_len = 0; /* 阻塞期间半帧也按300ms作废，防残留续帧 */
+    bt_last_tick = HAL_GetTick();
+    if (bt_rx_len < PASSWORD_LEN && bt_rx_byte >= '0' && bt_rx_byte <= '9')
+      bt_rx_buf[bt_rx_len++] = bt_rx_byte;        /* 只收数字，最多4位，其余丢弃 */
+    HAL_UART_Receive_IT(&huart1, &bt_rx_byte, 1); /* 持续武装1字节，字节到即消费，无残留 */
   }
   if (huart->Instance == USART2)
   {

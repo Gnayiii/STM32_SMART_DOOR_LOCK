@@ -19,10 +19,11 @@ void RFID_Check(void);
 void Read_Card(void);
 
 extern uint8_t UID[4], Temp[4];
-extern uint8_t UI0[4]; // 锟斤拷片0ID锟斤拷锟斤拷
-extern uint8_t UI1[4]; // 锟斤拷片1ID锟斤拷锟斤拷
-extern uint8_t UI2[4]; // 锟斤拷片2ID锟斤拷锟斤拷
-extern uint8_t UI3[4]; // 锟斤拷片3ID锟斤拷锟斤拷
+extern uint8_t UI0[4]; // 卡片0ID数组
+extern uint8_t UI1[4]; // 卡片1ID数组
+extern uint8_t UI2[4]; // 卡片2ID数组
+extern uint8_t UI3[4]; // 卡片3ID数组
+extern volatile uint8_t bt_rx_len; // 蓝牙帧计数
 
 uint8_t KeyNum;
 
@@ -328,6 +329,7 @@ uint8_t AutoRelock_CheckAndExec(void)
 		OLED_Update();
 		Buzzer_Lock();
 		Motor_DirectionAngle90(cw); /* 关锁 */
+		bt_rx_len = 0;          /* 丢弃菜单页期间蓝牙残留,防关锁后误触发 */
 		Flag = 1;
 		LockFlag = 0; /* 回锁屏 */
 		return 1;
@@ -362,6 +364,7 @@ uint8_t UnLock_Page(void)
 	while (1)
 	{
 		WDT_Feed();    /* 看门狗喂狗 */
+		bt_rx_len = 0; /* 键盘输入页不监听蓝牙:每轮丢弃,防退出后误触发 */
 		if (AutoRelock_CheckAndExec())
 			return 0; /* 自动回锁:超时自动关锁退出页面 */
 		if (Security_IsLocked())
