@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 #ifndef FINGERPRINT_FLASH_PAGE_ADDR
-// TODO: 必须根据工程调整为安全的空闲页地址（示例值，请修改）
-#define FINGERPRINT_FLASH_PAGE_ADDR  0x08010000
+// （page56）
+#define FINGERPRINT_FLASH_PAGE_ADDR  0x0800E000
 #endif
 
 #define FINGERPRINT_SLOT_COUNT 4

@@ -12,6 +12,8 @@
 #include "BUZZER.h"
 #include "AS608.h"
 #include "FingerprintFlash.h"
+#include "Security.h"
+#include "WDT.h"
 
 void RFID_Check(void);
 void Read_Card(void);
@@ -79,6 +81,18 @@ void Lock_UI(void)
 
 void Lock_Page(void)
 {
+	if (Security_IsLocked()) // 反暴力:锁定期间显示倒计时并忽略按键
+	{
+		uint32_t sec = (Security_LockRemainMs() + 999) / 1000; //+999向上取整
+		OLED_Clear();
+		OLED_ShowString(24, 20, "安全锁定", OLED_8X16);
+		OLED_ShowString(8, 40, "剩余", OLED_8X16);
+		OLED_ShowNum(56, 40, sec, 2, OLED_8X16);
+		OLED_ShowString(88, 40, "秒", OLED_8X16);
+		OLED_Update();
+		(void)Key_GetNum(); // 调用一次将Key_Num值清空，且将返回值丢弃(void)，否则锁定结束会读取Key_Num值造成误操作
+		return;
+	}
 	Lock_UI();
 	KeyNum = Key_GetNum();
 	if (KeyNum)
@@ -103,6 +117,7 @@ void Menu_UI_Next(void)
 	OLED_Clear();
 	OLED_ShowString(0, 0, "五、录入指纹", OLED_8X16);
 	OLED_ShowString(0, 16, "六、删除指纹", OLED_8X16);
+	OLED_ShowString(0, 32, "七、开锁日志", OLED_8X16);
 }
 
 uint8_t Flag = 1;
@@ -111,17 +126,21 @@ uint8_t First_Page(void)
 {
 	while (1)
 	{
+		WDT_Feed();    /* 看门狗喂狗 */
+		if (AutoRelock_CheckAndExec())
+			return 0; /* 自动回锁:超时自动关锁退出页面 */
 		KeyNum = Key_GetNum();
+		if (KeyNum) Security_RelockExtend();   /* 有按键：刷新自动回锁倒计时 */
 		switch (KeyNum)
 		{
 		case 13: // 上一项
 			Flag--;
 			if (Flag <= 0)
-				Flag = 6;
+				Flag = 7;
 			break;
 		case 14: // 下一项
 			Flag++;
-			if (Flag >= 7)
+			if (Flag >= 8)
 				Flag = 1;
 			break;
 		case 16: // 确认
@@ -164,6 +183,11 @@ uint8_t First_Page(void)
 		case 6:
 			Menu_UI_Next();
 			OLED_ReverseArea(0, 16, 96, 16);
+			OLED_Update();
+			break;
+		case 7:
+			Menu_UI_Next();
+			OLED_ReverseArea(0, 32, 96, 16);
 			OLED_Update();
 			break;
 		}
@@ -260,10 +284,12 @@ void Intput_Password(uint8_t keyflag)
 				Flag = 1;
 				LockFlag = 1;
 				unlock_flag = 1;
-				// 解锁操作
+				Security_OnAuthSuccess(CH_KEYPAD); /* 键盘认证成功 */
+												   // 解锁操作
 			}
 			else
 			{
+				Security_OnAuthFail(CH_KEYPAD); /* 键盘认证失败 */
 				OLED_Clear();
 				OLED_ShowString(28, 28, "密码错误！", OLED_8X16);
 				OLED_Update();
@@ -292,6 +318,39 @@ void Intput_Password(uint8_t keyflag)
 	Display_Password();
 }
 
+/* 自动回锁执行:到期关锁并回锁屏;Menu.c 拥有 LockFlag */
+uint8_t AutoRelock_CheckAndExec(void)
+{
+	if (Security_RelockDue())
+	{
+		OLED_Clear();
+		OLED_ShowString(20, 28, "自动关锁", OLED_8X16);
+		OLED_Update();
+		Buzzer_Lock();
+		Motor_DirectionAngle90(cw); /* 关锁 */
+		Flag = 1;
+		LockFlag = 0; /* 回锁屏 */
+		return 1;
+	}
+	return 0;
+}
+
+/* 有界等待卡片移开:替代 MFRC522 的无限 WaitCardOff(看门狗集成适配) */
+uint8_t WaitCardOff_Timeout(uint32_t timeout_ms)
+{
+	uint32_t t0 = HAL_GetTick();
+	unsigned char TagType[2];
+	while ((HAL_GetTick() - t0) < timeout_ms)
+	{
+		WDT_Feed(); /* 看门狗喂狗 */
+		if (PcdRequest(REQ_ALL, TagType) != MI_OK &&
+			PcdRequest(REQ_ALL, TagType) != MI_OK &&
+			PcdRequest(REQ_ALL, TagType) != MI_OK) return 1; /* 卡已移开 */
+		delay_10ms(10);
+	}
+	return 0; /* 超时,卡仍在 */
+}
+
 uint8_t UnLock_Page(void)
 {
 	OLED_Clear();
@@ -302,6 +361,11 @@ uint8_t UnLock_Page(void)
 	input_pos = 0; // 同时重置输入位置
 	while (1)
 	{
+		WDT_Feed();    /* 看门狗喂狗 */
+		if (AutoRelock_CheckAndExec())
+			return 0; /* 自动回锁:超时自动关锁退出页面 */
+		if (Security_IsLocked())
+			return 0; /* 反暴力:锁定后立即退出密码输入,回锁屏显示倒计时 */
 		if (unlock_flag == 0)
 		{
 			KeyNum = Key_GetNum();
@@ -505,9 +569,13 @@ uint8_t OldPassword_Page(void)
 	input_pos = 0; // 同时重置输入位置
 	while (1)
 	{
+		WDT_Feed();    /* 看门狗喂狗 */
+		if (AutoRelock_CheckAndExec())
+			return 0; /* 自动回锁:超时自动关锁退出页面 */
 		if (intpassword_flag == 0)
 		{
 			KeyNum = Key_GetNum();
+			if (KeyNum) Security_RelockExtend();   /* 有按键：刷新自动回锁倒计时 */
 			Intput_OldPassword(KeyNum);
 			if (KeyNum == 13)
 				return 0;
@@ -529,9 +597,13 @@ uint8_t NewPassword_Page(void)
 	input_pos = 0; // 同时重置输入位置
 	while (1)
 	{
+		WDT_Feed();    /* 看门狗喂狗 */
+		if (AutoRelock_CheckAndExec())
+			return 0; /* 自动回锁:超时自动关锁退出页面 */
 		if (newpassword_flag == 0)
 		{
 			KeyNum = Key_GetNum();
+			if (KeyNum) Security_RelockExtend();   /* 有按键：刷新自动回锁倒计时 */
 			Intput_NewPassword(KeyNum);
 			if (KeyNum == 13)
 				return 0;
@@ -637,7 +709,7 @@ void Add_Card(void)
 				OLED_ShowString(16, 28, "录入卡一成功！", OLED_8X16);
 				OLED_Update();
 				Buzzer_OLED_long();
-				WaitCardOff(); // 等待卡片移走
+				WaitCardOff_Timeout(5000); // 等待卡片移走
 			}
 			break;
 			case 1:
@@ -651,7 +723,7 @@ void Add_Card(void)
 				OLED_ShowString(16, 28, "录入卡二成功！", OLED_8X16);
 				OLED_Update();
 				Buzzer_OLED_long();
-				WaitCardOff();
+				WaitCardOff_Timeout(5000);
 			}
 			break;
 			case 2:
@@ -665,7 +737,7 @@ void Add_Card(void)
 				OLED_ShowString(16, 28, "录入卡三成功！", OLED_8X16);
 				OLED_Update();
 				Buzzer_OLED_long();
-				WaitCardOff();
+				WaitCardOff_Timeout(5000);
 			}
 			break;
 			case 3:
@@ -679,7 +751,7 @@ void Add_Card(void)
 				OLED_ShowString(16, 28, "录入卡四成功！", OLED_8X16);
 				OLED_Update();
 				Buzzer_OLED_long();
-				WaitCardOff();
+				WaitCardOff_Timeout(5000);
 			}
 			break;
 			case 4:
@@ -688,7 +760,7 @@ void Add_Card(void)
 				OLED_ShowString(28, 28, "卡位已满！", OLED_8X16);
 				OLED_Update();
 				Buzzer_OLED_short();
-				WaitCardOff();
+				WaitCardOff_Timeout(5000);
 			}
 			case 5:
 			{
@@ -696,7 +768,7 @@ void Add_Card(void)
 				OLED_ShowString(24, 28, "新卡已存在！", OLED_8X16);
 				OLED_Update();
 				Buzzer_OLED_short();
-				WaitCardOff();
+				WaitCardOff_Timeout(5000);
 			}
 			default:
 				break;
@@ -709,7 +781,11 @@ uint8_t Add_Card_Page(void)
 {
 	while (1)
 	{
+		WDT_Feed();    /* 看门狗喂狗 */
+		if (AutoRelock_CheckAndExec())
+			return 0; /* 自动回锁:超时自动关锁退出页面 */
 		KeyNum = Key_GetNum();
+		if (KeyNum) Security_RelockExtend();   /* 有按键：刷新自动回锁倒计时 */
 		Add_Card_UI();
 		Add_Card();
 		if (KeyNum)
@@ -854,7 +930,11 @@ uint8_t Delete_Card_Page(void)
 {
 	while (1)
 	{
+		WDT_Feed();    /* 看门狗喂狗 */
+		if (AutoRelock_CheckAndExec())
+			return 0; /* 自动回锁:超时自动关锁退出页面 */
 		KeyNum = Key_GetNum();
+		if (KeyNum) Security_RelockExtend();   /* 有按键：刷新自动回锁倒计时 */
 		select = 0;
 		if ((KeyNum >= 1 && KeyNum <= 12) | KeyNum == 15)
 		{
@@ -946,10 +1026,10 @@ void Add_Fingerprint_UI(void)
 		if (Flash_HasSlot(slot))
 		{
 			// 格式化为4位字符串 "0001".."0004"
-			char buf[5]; //前3位为0，最后一位为编号字符，末尾为字符串结束符
-			buf[0] = '0' ;
-			buf[1] = '0' ;
-			buf[2] = '0' ;
+			char buf[5]; // 前3位为0，最后一位为编号字符，末尾为字符串结束符
+			buf[0] = '0';
+			buf[1] = '0';
+			buf[2] = '0';
 			buf[3] = '0' + (slot % 10);
 			buf[4] = '\0';
 			// 在对应行显示编号（横坐标可根据需要调整）
@@ -963,12 +1043,12 @@ void Add_Fingerprint_UI(void)
 	}
 
 	uint8_t curCount = FingerprintFlash_Count();
-	if (curCount >= FINGERPRINT_SLOT_COUNT) //指纹已满4个
+	if (curCount >= FINGERPRINT_SLOT_COUNT) // 指纹已满4个
 	{
 		OLED_Clear();
 		OLED_ShowString(12, 28, "指纹已满四个！", OLED_8X16);
 	}
-	else if (curCount == 0)					//指纹为空
+	else if (curCount == 0) // 指纹为空
 	{
 		OLED_Clear();
 		OLED_ShowString(20, 28, "请录入指纹！", OLED_8X16);
@@ -1017,7 +1097,11 @@ uint8_t Add_Fingerprint_Page(void)
 {
 	while (1)
 	{
+		WDT_Feed();    /* 看门狗喂狗 */
+		if (AutoRelock_CheckAndExec())
+			return 0; /* 自动回锁:超时自动关锁退出页面 */
 		KeyNum = Key_GetNum();
+		if (KeyNum) Security_RelockExtend();   /* 有按键：刷新自动回锁倒计时 */
 		Add_Fingerprint_UI();
 		if (PS_ReadTouch())
 		{
@@ -1055,8 +1139,8 @@ uint8_t Add_Fingerprint_Page(void)
 			}
 
 			// 等待手指移开再继续（避免重复触发）
-			while (PS_ReadTouch())
-				HAL_Delay(50);
+			uint32_t t = HAL_GetTick();             /* 看门狗:死等改有界+喂狗 */
+			while (PS_ReadTouch() && (HAL_GetTick() - t) < 5000) { WDT_Feed(); HAL_Delay(50); }
 
 			// 小延时后刷新 UI
 			HAL_Delay(200);
@@ -1093,9 +1177,9 @@ void Delete_Fingerprint_UI(void)
 		{
 			// 显示编号 0001..0004（格式化）
 			char buf[5];
-			buf[0] = '0' ;
-			buf[1] = '0' ;
-			buf[2] = '0' ;
+			buf[0] = '0';
+			buf[1] = '0';
+			buf[2] = '0';
 			buf[3] = '0' + (slot % 10);
 			buf[4] = '\0';
 			OLED_ShowString(56, 16 * (slot - 1), buf, OLED_8X16);
@@ -1104,13 +1188,14 @@ void Delete_Fingerprint_UI(void)
 		{
 			OLED_ShowImage(0, 16 * (slot - 1), 128, 16, Empty);
 		}
-	}                                                                               
+	}
 }
 
 // 删除指定 slot（1..4），执行模块删除和 flash 中记录删除（不显示提示词）
 void Delete_Fingerprint(uint8_t select)
 {
-	if (select < 1 || select > FINGERPRINT_SLOT_COUNT) return;
+	if (select < 1 || select > FINGERPRINT_SLOT_COUNT)
+		return;
 
 	if (!Flash_HasSlot(select))
 	{
@@ -1145,7 +1230,11 @@ uint8_t Delete_Fingerprint_Page(void)
 {
 	while (1)
 	{
+		WDT_Feed();    /* 看门狗喂狗 */
+		if (AutoRelock_CheckAndExec())
+			return 0; /* 自动回锁:超时自动关锁退出页面 */
 		KeyNum = Key_GetNum();
+		if (KeyNum) Security_RelockExtend();   /* 有按键：刷新自动回锁倒计时 */
 		select_f = 0;
 		if ((KeyNum >= 1 && KeyNum <= 12) | KeyNum == 15)
 		{
@@ -1197,3 +1286,36 @@ uint8_t Delete_Fingerprint_Page(void)
 	}
 }
 
+/*-----------------------------------------开锁日志-------------------------------------------*/
+/* 开锁日志页:显示最近3条,任意键返回 */
+uint8_t AuditLog_Page(void)
+{
+	static const char *chname[4] = {"PWD", "CARD", "FING", "BT"};
+
+	while (1)
+	{
+		WDT_Feed();    /* 看门狗喂狗 */
+		if (AutoRelock_CheckAndExec()) return 0;   /* 自动回锁:超时自动关锁退出页面 */
+		KeyNum = Key_GetNum();
+		if (KeyNum) Security_RelockExtend();   /* 有按键：刷新自动回锁倒计时 */
+		if (KeyNum) return 0;
+
+		uint16_t total = AuditLog_GetCount();
+		uint16_t start = (total >= 3) ? (total - 3) : 0;   /* 最近3条起始索引 */
+
+		OLED_Clear();
+		OLED_ShowString(8, 0, "开锁日志", OLED_8X16);
+		for (uint8_t i = 0; i < 3 && (start + i) < total; i++)
+		{
+			uint16_t e = AuditLog_GetEntry(start + i);
+			uint8_t ch = e & 0x0F;          /* 通道 */
+			uint8_t ok = (e >> 4) & 0x01;   /* 结果(0败 1成) */
+			uint8_t seq = (e >> 8) & 0xFF;  /* 序列 */
+			OLED_ShowNum(0, 16 + i * 16, seq, 3, OLED_8X16);
+			OLED_ShowString(32, 16 + i * 16, (ch < 4) ? (char*)chname[ch] : "?", OLED_8X16);
+			OLED_ShowString(72, 16 + i * 16, ok ? "OK" : "ERR", OLED_8X16);
+		}
+		OLED_Update();
+		HAL_Delay(150);
+	}
+}

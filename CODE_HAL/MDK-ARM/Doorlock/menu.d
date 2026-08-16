@@ -1,43 +1,29 @@
-doorlock\menu.o: ..\Hardware\Menu.c
-doorlock\menu.o: ../Core/Inc/main.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h
-doorlock\menu.o: ../Core/Inc/stm32f1xx_hal_conf.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_rcc.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_def.h
-doorlock\menu.o: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f1xx.h
-doorlock\menu.o: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f103xb.h
-doorlock\menu.o: ../Drivers/CMSIS/Include/core_cm3.h
-doorlock\menu.o: D:\Keil5\ARM\ARMCC\Bin\..\include\stdint.h
-doorlock\menu.o: ../Drivers/CMSIS/Include/cmsis_version.h
-doorlock\menu.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
-doorlock\menu.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
-doorlock\menu.o: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/system_stm32f1xx.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-doorlock\menu.o: D:\Keil5\ARM\ARMCC\Bin\..\include\stddef.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_rcc_ex.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_gpio.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_gpio_ex.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_exti.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma_ex.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_cortex.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h
-doorlock\menu.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
-doorlock\menu.o: ..\Hardware\OLED.h
-doorlock\menu.o: ..\Hardware\OLED_Data.h
-doorlock\menu.o: ../System/Delay.h
-doorlock\menu.o: ..\Hardware\Key.h
-doorlock\menu.o: ..\Hardware\Menu.h
-doorlock\menu.o: D:\Keil5\ARM\ARMCC\Bin\..\include\string.h
-doorlock\menu.o: ..\Hardware\Motor.h
-doorlock\menu.o: ../System/PasswordFlash.h
-doorlock\menu.o: ..\Hardware\MFRC522.h
-doorlock\menu.o: ../System/Flash.h
-doorlock\menu.o: ..\Hardware\BUZZER.h
-doorlock\menu.o: ..\Hardware\AS608.h
-doorlock\menu.o: ../System/FingerprintFlash.h
+doorlock/menu.o: ..\Hardware\Menu.c ..\Core\Inc\main.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal.h \
+  ..\Core\Inc\stm32f1xx_hal_conf.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_rcc.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_def.h \
+  ..\Drivers\CMSIS\Device\ST\STM32F1xx\Include\stm32f1xx.h \
+  ..\Drivers\CMSIS\Device\ST\STM32F1xx\Include\stm32f103xb.h \
+  ..\Drivers\CMSIS\Include\core_cm3.h \
+  ..\Drivers\CMSIS\Device\ST\STM32F1xx\Include\system_stm32f1xx.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\Legacy\stm32_hal_legacy.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_rcc_ex.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_gpio.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_gpio_ex.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_exti.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_dma.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_dma_ex.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_cortex.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_flash.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_flash_ex.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_iwdg.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_pwr.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_tim.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_tim_ex.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_uart.h \
+  ..\Hardware\OLED.h ..\Hardware\OLED_Data.h ..\System\Delay.h \
+  ..\Hardware\Key.h ..\Hardware\Menu.h ..\Hardware\Motor.h \
+  ..\System\PasswordFlash.h ..\Hardware\MFRC522.h ..\System\Flash.h \
+  ..\Hardware\BUZZER.h ..\Hardware\AS608.h ..\System\FingerprintFlash.h \
+  ..\System\Security.h ..\System\WDT.h

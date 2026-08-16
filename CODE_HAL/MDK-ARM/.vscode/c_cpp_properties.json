@@ -3,18 +3,18 @@
         {
             "name": "Doorlock",
             "includePath": [
-                "d:\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Core\\Inc",
-                "d:\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Drivers\\STM32F1xx_HAL_Driver\\Inc\\Legacy",
-                "d:\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Drivers\\STM32F1xx_HAL_Driver\\Inc",
-                "d:\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Drivers\\CMSIS\\Device\\ST\\STM32F1xx\\Include",
-                "d:\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Drivers\\CMSIS\\Include",
-                "d:\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\System",
-                "d:\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Hardware",
+                "d:\\My_Project\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Core\\Inc",
+                "d:\\My_Project\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Drivers\\STM32F1xx_HAL_Driver\\Inc\\Legacy",
+                "d:\\My_Project\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Drivers\\STM32F1xx_HAL_Driver\\Inc",
+                "d:\\My_Project\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Drivers\\CMSIS\\Device\\ST\\STM32F1xx\\Include",
+                "d:\\My_Project\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Drivers\\CMSIS\\Include",
+                "d:\\My_Project\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\System",
+                "d:\\My_Project\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Hardware",
                 "D:\\Keil5\\ARM\\ARMCC\\include",
                 "D:\\Keil5\\ARM\\ARMCC\\include\\rw",
-                "d:\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\MDK-ARM",
-                "d:\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Drivers\\STM32F1xx_HAL_Driver\\Src",
-                "d:\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Core\\Src"
+                "d:\\My_Project\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\MDK-ARM",
+                "d:\\My_Project\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Drivers\\STM32F1xx_HAL_Driver\\Src",
+                "d:\\My_Project\\STM32_SMART_DOOR_LOCK\\CODE_HAL\\Core\\Src"
             ],
             "defines": [
                 "USE_HAL_DRIVER",

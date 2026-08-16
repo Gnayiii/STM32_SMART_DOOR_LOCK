@@ -5,10 +5,11 @@
 
 // 密码长度（与现有代码保持一致）
 #define PASSWORD_LEN 4
-// Flash存储地址（F103C8T6的最后一页：64KB Flash的最后4KB扇区）
-#define PASSWORD_FLASH_ADDR 0x0800E800  // 地址范围：0x0800FC00 ~ 0x0800FFFF
+// Flash存储地址（page51）
+#define PASSWORD_FLASH_ADDR 0x0800CC00  // 地址范围：0x0800CC00 ~ 0x0800CFFF
 // 验证标识（用于判断Flash数据是否有效）
-#define PASSWORD_VALID_MARK 0x5A5A5A5A  // 自定义有效标识
+#define PASSWORD_VALID_MARK_XOR 0x5A5A5A5B  /* 有效标识:密码已异或加扰 */
+#define PASSWORD_XOR_KEY        0x5A        /* 异或加扰密钥 */
 //默认密码
 #define Password_Default "1106"
 

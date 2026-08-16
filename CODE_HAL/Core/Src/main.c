@@ -34,6 +34,8 @@
 #include "Flash.h"
 #include "BUZZER.h"
 #include "AS608.h"
+#include "Security.h"
+#include "WDT.h"
 #include <string.h>
 /* USER CODE END Includes */
 
@@ -69,6 +71,7 @@ void SystemClock_Config(void);
 uint8_t cardnumber;
 uint8_t RxData[PASSWORD_LEN + 1];
 uint8_t password_rx_complete = 0;
+static uint8_t rfid_fail_pending = 0; /* RFID 防重复计数闩锁 */
 extern uint8_t LockFlag;
 extern uint8_t Flag;
 extern uint8_t deleteflag;
@@ -124,6 +127,8 @@ int main(void)
   OLED_Init();
   RFID_Init();
   PasswordFlash_Init();
+  Security_Init();                                  /* 反暴力+自动回锁初始化 */
+  WDT_Init();                                       /* 独立看门狗初始化 */
   HAL_UART_Receive_IT(&huart2, &usart2_rx_byte, 1); // 启动 USART2 单字节中断接收（保证第一次触发回调）
   OLED_Clear();
   HAL_TIM_Base_Start_IT(&htim2);
@@ -137,8 +142,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    Read_Card(); // 读取RFID卡号
-    if (LockFlag == 0)  // 门锁关闭状态
+    WDT_Feed();        /* 看门狗喂狗 */
+    Read_Card();       // 读取RFID卡号
+    if (LockFlag == 0) // 门锁关闭状态
     {
       if (uartflag == 0)
       {
@@ -148,7 +154,7 @@ int main(void)
       // 蓝牙解锁
       if (password_rx_complete)
       {
-        if (Check_Password_HC06())
+        if (!Security_IsLocked() && Check_Password_HC06()) /* 反暴力:锁定期间忽略蓝牙 */
         {
           OLED_Clear();
           OLED_ShowString(28, 28, "解锁成功！", OLED_8X16);
@@ -157,9 +163,11 @@ int main(void)
           Motor_DirectionAngle90(ccw);
           Flag = 1;
           LockFlag = 1;
+          Security_OnAuthSuccess(CH_BT); /* 反暴力:成功清零+启动回锁 */
         }
-        else
+        else if (!Security_IsLocked()) /* 反暴力:锁定期间忽略蓝牙 */
         {
+          Security_OnAuthFail(CH_BT); /* 反暴力:失败计数 */
           OLED_Clear();
           OLED_ShowString(28, 28, "密码错误！", OLED_8X16);
           OLED_Update();
@@ -173,27 +181,34 @@ int main(void)
         password_rx_complete = 0;
       }
       // 指纹解锁
-      if (PS_ReadTouch() == 1) // 有手指触摸
+      if (!Security_IsLocked() && PS_ReadTouch() == 1) // 有手指触摸（反暴力:锁定期间忽略指纹）
       {
         uint16_t fingerID;
         if (AS608_IdentifyOnce(&fingerID, 3000) == 0) // 指纹识别
         {
+          Security_OnAuthFail(CH_FP); /* 反暴力:失败计数 */
           OLED_Clear();
           OLED_ShowString(20, 28, "指纹未匹配!", OLED_8X16);
           OLED_Update();
           Buzzer_OLED_long();
-          while(PS_ReadTouch()); // 等待手指移开
+          uint32_t t = HAL_GetTick(); /* 看门狗:死等改有界+喂狗 */
+          while (PS_ReadTouch() && (HAL_GetTick() - t) < 5000)
+          {
+            WDT_Feed();
+            HAL_Delay(50);
+          }
         }
         else
         {
           OLED_Clear();
           OLED_ShowString(32, 28, "指纹ID:", OLED_8X16);
-          OLED_ShowNum(88, 28, fingerID+1, 1, OLED_8X16);
+          OLED_ShowNum(88, 28, fingerID + 1, 1, OLED_8X16);
           OLED_Update();
           Buzzer_Lock();
           Motor_DirectionAngle90(ccw);
           Flag = 1;
           LockFlag = 1;
+          Security_OnAuthSuccess(CH_FP); /* 反暴力:成功清零+启动回锁 */
         }
       }
       RFID_Check();
@@ -201,6 +216,8 @@ int main(void)
     }
     else // 门锁开启状态
     {
+      if (AutoRelock_CheckAndExec())
+        continue; /* 自动回锁:超时自动关锁回锁屏 */
       // S13=上一页，返回
       // S14=上一页
       // S15=删除
@@ -227,6 +244,7 @@ int main(void)
       }
       else if (FirstFlag == 4) // 关锁
       {
+        Security_ClearRelock(); /* 手动关锁:取消自动回锁 */
         OLED_Clear();
         OLED_ShowString(20, 28, "正在关锁", OLED_8X16);
         OLED_ShowChar(84, 28, '.', OLED_8X16);
@@ -244,6 +262,10 @@ int main(void)
       {
         deleteflag_f = 1;
         Delete_Fingerprint_Page();
+      }
+      else if (FirstFlag == 7) // 查看开锁日志
+      {
+        AuditLog_Page();
       }
     }
     /* USER CODE END WHILE */
@@ -316,20 +338,32 @@ void Clear_UART_RX_Buffer(void)
   }
 }
 
-// RFID卡检测函数
-void RFID_Check()
+// RFID卡检测函数（反暴力:锁定期间忽略+防重复计数）
+void RFID_Check(void)
 {
-  cardnumber = Rc522Test(); // 读取卡片ID
-  if (cardnumber == 0)      // 如果为0，表示“卡片错误”，系统中没有这张卡
+  if (Security_IsLocked())
   {
+    rfid_fail_pending = 0;
+    return;
+  } // 锁定期间忽略并清闩锁
+  cardnumber = Rc522Test(); // 读取卡片ID
+  if (cardnumber == 0)      // 有卡但未录入
+  {
+    if (!rfid_fail_pending)
+    {
+      rfid_fail_pending = 1;
+      Security_OnAuthFail(CH_RFID);
+    } // 卡压住不拿走只计一次失败
     OLED_Clear();
     OLED_ShowString(28, 28, "卡片错误！", OLED_8X16);
     OLED_Update();
     Buzzer_OLED_long();
-    WaitCardOff(); // 等待卡片移开
+    WaitCardOff_Timeout(5000); // 等待卡片移开
   }
-  else if (cardnumber == 1 || cardnumber == 2 || cardnumber == 3 || cardnumber == 4) // 如果卡编号为1-4，说明是系统中的4张卡
+  else if (cardnumber >= 1 && cardnumber <= 4) // 合法卡1-4
   {
+    rfid_fail_pending = 0;
+    Security_OnAuthSuccess(CH_RFID); /* 反暴力:成功清零+启动回锁 */
     OLED_Clear();
     OLED_ShowString(40, 28, "卡ID:", OLED_8X16);
     OLED_ShowNum(80, 28, cardnumber, 1, OLED_8X16);
@@ -338,8 +372,12 @@ void RFID_Check()
     Flag = 1;
     Buzzer_Lock();
     Motor_DirectionAngle90(ccw);
-    WaitCardOff(); // 等待卡片移开
+    WaitCardOff_Timeout(5000); // 等待卡片移开
   }
+  else if (cardnumber == 6)
+  {
+    rfid_fail_pending = 0;
+  } // 无卡:清闩锁
 }
 
 // 从flash中读取各卡信息

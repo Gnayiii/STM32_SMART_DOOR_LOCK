@@ -16,6 +16,9 @@ uint8_t NewPassword_Page(void);
 uint8_t Add_Card_Page(void);
 uint8_t Delete_Card_Page(void);
 uint8_t Check_Password(void);
+uint8_t AutoRelock_CheckAndExec(void);
+uint8_t WaitCardOff_Timeout(uint32_t timeout_ms);
+uint8_t AuditLog_Page(void);
 uint8_t Add_Fingerprint_Page(void);
 uint8_t Delete_Fingerprint_Page(void);
 
